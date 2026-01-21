@@ -4,33 +4,12 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "signaldesk",
+	"name": "d1-tutorial",
 	"main": "src/index.ts",
-	"compatibility_date": "2025-09-27",
-	"compatibility_flags": [
-		"global_fetch_strictly_public"
-	],
-	"assets": {
-		// The path to the directory containing the `index.html` file to be served at `/`
-		"directory": "./public"
-	},
+	"compatibility_date": "2026-01-16",
 	"observability": {
 		"enabled": true
-	},
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "ticket-d1",
-			"database_id": "62f629b6-1f07-4c38-a49e-e8da851f1565"
-		}
-	],
-	
-		"$schema": "./node_modules/wrangler/config-schema.json",
-		"ai": {
-		  "binding": "AI"
-		}
-}
-	
+	}
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
@@ -49,6 +28,11 @@
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
 	 */
 	// "vars": {  "MY_VARIABLE": "production_value" }
+	/**
+	 * Static Assets
+	 * https://developers.cloudflare.com/workers/static-assets/binding/
+	 */
+	// "assets": {  "directory": "./public/",  "binding": "ASSETS" }
 	/**
 	 * Service Bindings (communicate between multiple Workers)
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
