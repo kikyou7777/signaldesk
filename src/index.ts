@@ -1,6 +1,7 @@
 import type { Env } from './constants';
 import {
 	extractSeedPayload,
+	analyzeFeedbackById,
 	handleAnalyze,
 	handleBulkIngest,
 	handleEvalLatest,
@@ -9,7 +10,7 @@ import {
 	searchApi,
 	seedGoldenSet,
 } from './handlers';
-import { renderEval, renderFeedbackDetail, renderInbox, renderMessagePage, renderThemes } from './ui';
+import { renderEval, renderFeedbackDetail, renderInbox, renderMessagePage, renderResults, renderThemes } from './ui';
 import {
 	errorResponse,
 	jsonResponse,
@@ -21,7 +22,7 @@ import {
 } from './utils';
 
 export default {
-	async fetch(request, env): Promise<Response> {
+	async fetch(request, env, ctx): Promise<Response> {
 		const url = new URL(request.url);
 		const pathname = url.pathname;
 		try {
@@ -30,6 +31,9 @@ export default {
 			}
 			if (request.method === 'GET' && pathname === '/themes') {
 				return await renderThemes(env);
+			}
+			if (request.method === 'GET' && pathname === '/results') {
+				return await renderResults(env);
 			}
 			if (request.method === 'GET' && pathname === '/feedback') {
 				const id = url.searchParams.get('id');
@@ -59,13 +63,23 @@ export default {
 						createdAt
 					)
 					.run();
+				const analyze = url.searchParams.get('analyze') !== '0';
+				if (analyze) {
+					const task = analyzeFeedbackById(env, id);
+					if (ctx) {
+						ctx.waitUntil(task);
+					} else {
+						await task;
+					}
+				}
 				if (parsed.isForm) {
 					return Response.redirect(`/feedback?id=${encodeURIComponent(id)}`, 303);
 				}
 				return jsonResponse({ id });
 			}
 			if (request.method === 'POST' && pathname === '/api/feedback/bulk') {
-				return await handleBulkIngest(env, request);
+				const analyze = url.searchParams.get('analyze') === '1' || url.searchParams.get('analyze') === 'true';
+				return await handleBulkIngest(env, request, { analyze, ctx });
 			}
 			if (request.method === 'POST' && pathname.startsWith('/api/feedback/') && pathname.endsWith('/analyze')) {
 				const parts = pathname.split('/');

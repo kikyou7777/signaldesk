@@ -81,7 +81,11 @@ export function extractSeedPayload(value: any): { items: SeedItem[]; duplicate_p
 	return { items, duplicate_pairs };
 }
 
-export async function handleBulkIngest(env: Env, request: Request): Promise<Response> {
+export async function handleBulkIngest(
+	env: Env,
+	request: Request,
+	options?: { analyze?: boolean; ctx?: ExecutionContext }
+): Promise<Response> {
 	const parsed = await parseJSONOptional(request, 500000);
 	if (parsed.error) return parsed.error;
 	const payload = parsed.empty ? MESSY_SET : parsed.value;
@@ -93,6 +97,7 @@ export async function handleBulkIngest(env: Env, request: Request): Promise<Resp
 	const db = dbBinding.value;
 	const inserted: string[] = [];
 	const skipped: Array<{ index: number; reason: string }> = [];
+	const analysisTasks: Promise<void>[] = [];
 	for (let i = 0; i < payload.length; i += 1) {
 		const item = payload[i];
 		const validated = validateFeedbackInput(item);
@@ -122,6 +127,17 @@ export async function handleBulkIngest(env: Env, request: Request): Promise<Resp
 			continue;
 		}
 		inserted.push(id);
+		if (options?.analyze) {
+			analysisTasks.push(analyzeFeedbackById(env, id));
+		}
+	}
+	if (analysisTasks.length) {
+		const all = Promise.allSettled(analysisTasks);
+		if (options?.ctx) {
+			options.ctx.waitUntil(all);
+		} else {
+			await all;
+		}
 	}
 	return jsonResponse({ inserted_count: inserted.length, inserted_ids: inserted, skipped });
 }
@@ -180,6 +196,14 @@ async function analyzeAndStore(env: Env, feedback: FeedbackRow): Promise<{ analy
 		.run();
 	await upsertVector(env, feedback, analysisRow);
 	return { analysis: analysisRow };
+}
+
+export async function analyzeFeedbackById(env: Env, id: string): Promise<void> {
+	const dbBinding = requireBinding(env.DB, 'DB');
+	if (dbBinding.error) return;
+	const feedback = await fetchFeedbackById(dbBinding.value, id);
+	if (!feedback) return;
+	await analyzeAndStore(env, feedback);
 }
 
 export async function handleAnalyze(env: Env, id: string): Promise<Response> {

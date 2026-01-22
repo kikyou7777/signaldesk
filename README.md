@@ -46,3 +46,51 @@ If `eval_runs` / `eval_cases` are missing, apply migration `migrations/0002_eval
 ## Mock data
 - `golden_dataset.json` can be POSTed to `/api/eval/seed` to seed a labeled golden set.
 - `messy_data.json` can be POSTed to `/api/feedback/bulk` to stress-test ingestion.
+
+## Workflow guide
+
+SignalDesk has two main workflows:
+- Production workflow: real feedback processing (messy or live tickets).
+- Evaluation workflow: quality checks with the golden dataset.
+
+### Production workflow (real feedback)
+1. Ingest feedback
+   - Web form: `GET /`
+   - API: `POST /api/feedback`
+2. Store raw feedback in D1 (`feedback` table).
+3. Run AI analysis (Workers AI) and store results in D1 (`analysis` table).
+4. Create embeddings (Workers AI) and upsert vectors into Vectorize (if bound).
+5. Semantic similarity search when viewing a feedback detail page.
+
+Example API:
+```bash
+curl -X POST https://signaldesk.workers.dev/api/feedback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "discord",
+    "title": "wrangler tail not working",
+    "body": "i cant see any logs when i run wrangler tail",
+    "customer_tier": "Pro"
+  }'
+```
+
+### Evaluation workflow (golden dataset)
+Purpose: validate JSON quality, theme correctness, and Vectorize recall.
+
+Steps:
+1. Seed the golden dataset (50 labeled items, 10 known duplicate pairs).
+2. Analyze all items (Workers AI) and store results.
+3. Generate embeddings and upsert vectors.
+4. For each duplicate pair, query top 3 matches and compute recall.
+5. Record metrics in `eval_runs` and `eval_cases`.
+
+Commands:
+```bash
+curl -X POST http://localhost:8787/api/eval/seed
+curl -X POST http://localhost:8787/api/eval/run
+curl http://localhost:8787/api/eval/latest
+```
+
+### How messy vs golden data is used
+- `messy_data.json`: simulate real-world noisy intake (`POST /api/feedback/bulk`).
+- `golden_dataset.json`: quality gate to measure analysis validity and recall.
